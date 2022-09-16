@@ -1,2 +1,4 @@
 # Altschool-Excercise
-altschool-test-exercises 
+
+
+Documenting my progress on all Altschool-cloud-exercises.
