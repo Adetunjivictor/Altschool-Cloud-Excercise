@@ -1,0 +1,389 @@
+
+---
+- name: ansible playbook
+  hosts: all
+  become: yes
+  become_user: root
+
+
+  tasks:
+  - name: Apt update
+    apt:
+       update_cache: yes
+       autoclean: yes
+       autoremove: yes
+
+  - name: Install git
+    apt: 
+      name: git
+      state: present
+  
+  - name: Install apache server
+    apt: 
+      name: apache2
+      state: present
+
+  - name: curl install
+    apt:
+      name: curl
+      state: latest
+
+  - name: install dependencies
+    apt:
+      name:
+        - lsb-release
+        - ca-certificates
+        - apt-transport-https
+        - gnupg2
+        - wget
+        - debconf-utils
+        - libaio1
+
+  - name: Install software-properties
+    apt: 
+      name: software-properties-common
+      state: present
+
+  - name: "Repo PHP 8.1"
+    apt_repository:
+      repo: "ppa:ondrej/php"
+
+  - name: "Updating the repo" 
+    apt: 
+      update_cache: yes
+
+  - name: Installing PHP
+    apt: 
+        name: php8.1 
+        state: present
+
+  - name: install lamp stack
+    apt:
+      pkg:
+        - php8.1-mysql
+        - php8.1-curl
+        - php8.1-cli
+        - php8.1-xml
+        - php8.1-common
+        - php8.1-imap
+        - php8.1-dev
+        - php8.1-imagick
+        - php8.1-gd
+        - php8.1-mbstring
+        - php8.1-zip
+        - php8.1-xmlrpc
+        - php8.1-soap
+        - php8.1-intl
+        - php8.1-opcache
+        - libapache2-mod-php
+      state: present
+      update_cache: yes 
+
+
+  - name: Allow HTTP
+    ufw:
+      rule: allow
+      port: "80"
+      proto: tcp
+
+  - name: Allow HTTPS
+    ufw:
+      rule: allow
+      port: "80"
+      proto: tcp
+
+  - name: Allow port 443
+    ufw:
+      rule: allow
+      port: 443
+
+  - name: Allow SSH
+    ufw: 
+      rule: allow
+      port: "80"
+      proto: tcp
+
+  - name: Allow MySQL
+    ufw: 
+      rule: allow
+      port: "80"
+      proto: tcp
+
+  - name: Allow all access to tcp port 80
+    ufw:
+      rule: allow
+      port: 80
+      proto: tcp
+
+  - name: Download mysql
+    get_url:
+      url="https://dev.mysql.com/get/mysql-apt-config_0.8.22-1_all.deb"
+      dest="/root/mysql-apt-config_0.8.22-1_all.deb"
+
+  - name: Install mysql
+    apt: deb="/root/mysql-apt-config_0.8.22-1_all.deb"
+
+  - name: Upgrade System
+    apt: upgrade=dist update_cache=yes
+
+  - name: Install Pip3
+    apt:
+      name: python3-pip
+      state: present
+
+  - name: Install MySQL client
+    shell: apt-get -y install mysql-client
+   
+  - name: mysql server installation
+    shell: DEBIAN_FRONTEND=noninteractive apt-get install mysql-server mysql-client --assume-yes --force-yes < /dev/null > /dev/null
+
+  - name: Remove   /root/.my.cnf
+    ansible.builtin.file:
+      path: /root/.my.cnf
+      state: absent
+
+  - name: Installing Mysql-server
+    apt:
+      name: mysql-server
+      state: present
+
+  - name: Install pymysql python package
+    ansible.builtin.pip:
+      name: pymysql
+
+  - name: Start and enable MySQL service
+    service:
+      name: mysql
+      state: started
+      enabled: yes
+    notify: 
+      -Restart mysql
+
+  - name: Enable remote login to mysql
+    lineinfile:
+      path: /etc/mysql/mysql.conf.d/mysqld.cnf
+      regexp: '^bind-address'
+      line: 'bind-address = 0.0.0.0'
+      backup: yes
+
+  - name: Restart mysql
+    service:
+      name: mysql
+      state: restarted
+
+  - name: change the working directory to /var/www/ and create skel directory
+    command: mkdir skel
+    args:
+      chdir: /var/www/
+      creates: skel
+
+  - name: clone the project repo into a new directory
+    git: 
+      repo: https://github.com/f1amy/laravel-realworld-example-app.git 
+      dest: /var/www/skel
+      clone: yes
+      update: no
+
+  - name: create the web.php file in the routes directory
+    ansible.builtin.copy: 
+      dest: /var/www/skel/routes/web.php
+      content: |
+        <?php
+
+        Route::get('/', function () {
+            return view('welcome');      
+        });     
+
+  - name: Create an apache virtual host configuration file
+    ansible.builtin.copy:
+      dest: /var/www/skel/.env
+      content: |
+        APP_NAME="laravel"
+        APP_ENV=local
+        APP_KEY=
+        APP_DEBUG=true
+        APP_URL=http://127.0.0.1
+        APP_PORT=3000
+
+        LOG_CHANNEL=stack
+        LOG_DEPRECATIONS_CHANNEL=null
+        LOG_LEVEL=debug
+
+        DB_CONNECTION=mysql
+        DB_HOST=127.0.0.1
+        DB_PORT=3306
+        DB_DATABASE=laravel
+        DB_USERNAME=root
+        DB_PASSWORD=
+
+        BROADCAST_DRIVER=log
+        CACHE_DRIVER=file
+        QUEUE_CONNECTION=sync
+        SESSION_DRIVER=file
+        SESSION_LIFETIME=120
+
+        MEMCACHED_HOST=127.0.0.1
+        REDIS_HOST=127.0.0.1
+        REDIS_PASSWORD=null
+        REDIS_PORT=6379
+
+        MAIL_MAILER=smtp
+        MAIL_HOST=mailhog
+        MAIL_PORT=1025
+        MAIL_USERNAME=null
+        MAIL_PASSWORD=null
+        MAIL_ENCRYPTION=null
+
+        MAIL_FROM_ADDRESS="adetunjivictor544@gmail.com"
+        MAIL_FROM_NAME="${APP_NAME}"
+        AWS_ACCESS_KEY_ID=
+        AWS_SECRET_ACCESS_KEY=
+        AWS_DEFAULT_REGION=us-east-1
+        AWS_BUCKET=
+        AWS_USE_PATH_STYLE_ENDPOINT=false
+        PUSHER_APP_ID=
+        PUSHER_APP_KEY=
+        PUSHER_APP_SECRET=
+        PUSHER_APP_CLUSTER=mt1
+        MIX_PUSHER_APP_KEY="${PUSHER_APP_KEY}"
+        MIX_PUSHER_APP_CLUSTER="${PUSHER_APP_CLUSTER}"
+        L5_SWAGGER_GENERATE_ALWAYS=true
+        SAIL_XDEBUG_MODE=develop,debug
+        SAIL_SKIP_CHECKS=true
+
+  - name: root permission chaged
+    shell: chown -R root:root /var/www/skel
+
+  - name: change user permission
+    shell: chmod -R 0755 /var/www/skel
+
+  - name: storage permission
+    shell: chmod -R 0755 /var/www/skel/storage
+
+  - name: bootstrap permission
+    shell: chmod -R 0755 /var/www/skel/bootstrap/cache
+
+  - name: htaccess 
+    copy:
+      dest: "/var/www/skel/.htaccess"
+      content: 
+        <IfModule mod_rewrite.c>
+          RewriteEngine On
+          RewriteCond %{REQUEST_URI} !^/public/
+          RewriteCond %{REQUEST_FILENAME} !-d
+          RewriteCond %{REQUEST_FILENAME} !-f
+          RewriteRule ^(.*)$ /public/$1
+          RewriteRule ^(/)?$ public/index.php [L]
+        </IfModule>
+
+  - name: Installing composer
+    shell: php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+
+  - name: setting composer file
+    shell: php -r "if (hash_file('sha384', 'composer-setup.php') === '55ce33d7678c5a611085589f1f3ddf8b3c52d662cd01d4ba75c0ee0459970c2200a51f492d557530c71c15d8dba01eae') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;"
+
+  - name: composer setup
+    shell: php composer-setup.php
+
+  - name: unlinking composer
+    shell: php -r "unlink('composer-setup.php');"
+
+  - name: Move composer file directory
+    shell: mv composer.phar /usr/local/bin/composer
+
+  - name: composer project
+    shell: composer create-project -n
+    args:
+       chdir: /var/www/skel
+
+  - name: copy postgreSQL script to install and run it
+    copy:
+      src: postgres.sh
+      dest: /home/admin
+      mode: 0775
+
+  - name: run PostgreSQL Script on remote
+    command: sh /home/admin/postgres.sh
+
+  - name: run artisan key gen
+    shell: php artisan key:generate
+    args:
+      chdir: /var/www/skel
+
+  - name: run php artisan config
+    shell: php artisan config:cache
+    args:
+      chdir: /var/www/skel
+
+  - name: clear php artisan config
+    shell: php artisan config:clear
+    args:
+      chdir: /var/www/skel
+
+  - name: Install ssl/tls certificate packages
+    apt: 
+      name: "{{ item }}"
+      state: latest
+      update_cache: yes
+      autoremove: yes
+    with_items:
+      - certbot
+      - python3-certbot-apache
+
+  - name: create an apache virtual host configuration file
+    copy:
+      dest: "/etc/apache2/sites-available/skel.conf"
+      content: |
+          <VirtualHost *:80>
+              ServerAdmin admin@adetunjivictor.me
+              ServerName www.adetunjivictor.me
+              ServerAlias www.adetunjivictor.me
+              DocumentRoot /var/www/skel/public
+              <Directory /var/www/skel/public>
+                  Options Indexes FollowSymLinks
+                  AllowOverride All
+                  Require all granted
+              </Directory>
+
+              ErrorLog ${APACHE_LOG_DIR}/error.log
+              CustomLog ${APACHE_LOG_DIR}/access.log combined
+          </VirtualHost>
+
+  - name: Enable a2dissite rewrite
+    shell: a2dissite 000-default.conf
+
+  - name: allow a2ensite
+    shell: a2ensite skel.conf
+
+  - name: rewrite a2enmod
+    shell: a2enmod rewrite
+
+  - name: restart apache2
+    service:
+      name: apache2
+      state: stopped
+
+  - name: Change file ownersip, group, and permissions
+    ansible.builtin.file:
+      path: /var/www/skel
+      state: directory
+      recurse: yes
+      owner: www-data
+      group: www-data
+      mode: '775'
+
+
+  - name: install snap core
+    shell: snap install core
+
+  - name: refresh snap core
+    shell: snap refresh core
+
+  - name: install certbot snap core
+    shell: snap install --classic certbot
+
+  - name: Update Timezone to Africa/Lagos
+    command: timedatectl set-timezone Africa/Lagos
+
+  - name: confirm timezone has been changed correctly
+    command: timedatectl
